@@ -1,4 +1,4 @@
-# Kite AI - Counter Dapp (For Development purpose only)
+# Kite AI - Counter Dapp (For Development purposes only)
 
 Kite AI - Counter Dapp is a decentralized application (dApp) built with **Kite AI chain**, **React Vite**, **Tailwind CSS**, and **Ethers.js**. A blockchain-integrated counter.
 
@@ -50,7 +50,7 @@ Kite AI - Counter Dapp is a decentralized application (dApp) built with **Kite A
 
 ## KiteAI Testnet Faucet
 
-Use the below link to get KITE and USDT tokens on testnet
+Use the link below to get KITE and USDT tokens on testnet
 - [KiteAI testnet Faucet](https://faucet.gokite.ai/)
 
 ## **Contributing**
