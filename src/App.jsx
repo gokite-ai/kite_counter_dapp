@@ -9,12 +9,64 @@ import "./index.css";
 const CONTRACT_ADDRESS = "0x67924334CAC5f87ce009FF0568E01930a74A1aEA";
 const KITE_TESTNET_CHAIN_ID = 2368;
 
+const KITE_TESTNET_PARAMS = {
+  chainId: "0x940", // 2368 in hex
+  chainName: "Kite AI Testnet",
+  nativeCurrency: {
+    name: "KITE",
+    symbol: "KITE",
+    decimals: 18,
+  },
+  rpcUrls: ["https://rpc-testnet.kitescan.ai"],
+  blockExplorerUrls: ["https://testnet.kitescan.ai"],
+};
+
 function App() {
   const [count, setCount] = useState(null);
-  const [provider, setProvider] = useState(null);
+  const [, setProvider] = useState(null);
   const [contract, setContract] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState("");
+  const [isSwitching, setIsSwitching] = useState(false);
+
+  const switchOrAddKiteNetwork = async () => {
+    if (!window.ethereum) {
+      setError("Please install MetaMask!");
+      return false;
+    }
+
+    setIsSwitching(true);
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: KITE_TESTNET_PARAMS.chainId }],
+      });
+      setError("");
+      return true;
+    } catch (switchError) {
+      // Error code 4902 indicates that the chain has not been added to MetaMask.
+      if (
+        switchError.code === 4902 ||
+        switchError?.data?.originalError?.code === 4902
+      ) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [KITE_TESTNET_PARAMS],
+          });
+          setError("");
+          return true;
+        } catch (addError) {
+          setError(addError?.message || "Failed to add Kite Testnet to your wallet.");
+          return false;
+        }
+      }
+      setError("Please switch your wallet to Kite AI Testnet (Chain ID 2368).");
+      return false;
+    } finally {
+      setIsSwitching(false);
+    }
+  };
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -22,17 +74,20 @@ function App() {
       return;
     }
 
-    if (window.ethereum) {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const { chainId } = await provider.getNetwork();
+    try {
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      const network = await browserProvider.getNetwork();
 
-      if (parseInt(chainId) !== KITE_TESTNET_CHAIN_ID) {
-        setError("Wrong network! Please switch to Kite Testnet.");
-        return;
+      if (Number(network.chainId) !== KITE_TESTNET_CHAIN_ID) {
+        const switched = await switchOrAddKiteNetwork();
+        if (!switched) return;
       }
 
-      setProvider(provider);
+      // Re-instantiate provider after network switch to ensure active chain
+      const updatedProvider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await updatedProvider.getSigner();
+
+      setProvider(updatedProvider);
       setWallet(await signer.getAddress());
 
       const contractInstance = new ethers.Contract(
@@ -45,30 +100,53 @@ function App() {
       const currentCount = await contractInstance.getCount();
       setCount(currentCount.toString());
       setError("");
+    } catch (err) {
+      setError(err?.message || "Failed to connect wallet.");
     }
   };
 
   const increment = async () => {
     if (!contract) return;
-    const tx = await contract.increment();
-    await tx.wait();
-    const updatedCount = await contract.getCount();
-    setCount(updatedCount.toString());
+    try {
+      const tx = await contract.increment();
+      await tx.wait();
+      const updatedCount = await contract.getCount();
+      setCount(updatedCount.toString());
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || "Transaction failed.");
+    }
   };
 
   const decrement = async () => {
     if (!contract) return;
-    const tx = await contract.decrement();
-    await tx.wait();
-    const updatedCount = await contract.getCount();
-    setCount(updatedCount.toString());
+    try {
+      const tx = await contract.decrement();
+      await tx.wait();
+      const updatedCount = await contract.getCount();
+      setCount(updatedCount.toString());
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || "Transaction failed.");
+    }
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-between mainbg">
       <Header wallet={wallet} />
       <div className="flex flex-col items-center p-6 flex-1 w-full">
-        {error && <p className="text-red-500 mb-4">{error}</p>}
+        {error && (
+          <div className="flex flex-col items-center gap-2 mb-4">
+            <p className="text-red-500">{error}</p>
+            {error.includes("Kite AI Testnet") && (
+              <button
+                onClick={switchOrAddKiteNetwork}
+                disabled={isSwitching}
+                className="btn-secondary text-xs px-3 py-1 cursor-pointer"
+              >
+                {isSwitching ? "Switching..." : "Switch to Kite Testnet"}
+              </button>
+            )}
+          </div>
+        )}
 
         {!wallet ? (
           <button
