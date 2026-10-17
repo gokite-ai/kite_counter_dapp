@@ -50,7 +50,7 @@ function App() {
     }
   };
 
-  // Listen to account and chain changes
+  // Listen to account and chain changes with cleanup
   useEffect(() => {
     if (!window.ethereum) return;
 
@@ -82,6 +82,11 @@ function App() {
 
     window.ethereum.on("accountsChanged", handleAccountsChanged);
     window.ethereum.on("chainChanged", handleChainChanged);
+
+    return () => {
+      window.ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
+      window.ethereum.removeListener?.("chainChanged", handleChainChanged);
+    };
   }, [wallet]);
 
   const increment = async () => {
