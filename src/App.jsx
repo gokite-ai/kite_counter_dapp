@@ -64,9 +64,17 @@ function App() {
     setCount(updatedCount.toString());
   };
 
+  const disconnectWallet = () => {
+    setWallet(null);
+    setContract(null);
+    setProvider(null);
+    setCount(null);
+    setError("");
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-between mainbg">
-      <Header wallet={wallet} />
+      <Header wallet={wallet} disconnectWallet={disconnectWallet} />
       <div className="flex flex-col items-center p-6 flex-1 w-full">
         {error && <p className="text-red-500 mb-4">{error}</p>}
 
