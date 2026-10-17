@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import ActivityFeed from "./components/ActivityFeed";
 import CONTRACT_ABI from "../abis/Counter.json";
 import "./index.css";
 
@@ -15,6 +16,8 @@ function App() {
   const [contract, setContract] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState("");
+  const [activities, setActivities] = useState([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -48,20 +51,60 @@ function App() {
     }
   };
 
+  const syncCount = async () => {
+    if (!contract || isSyncing) return;
+    try {
+      setIsSyncing(true);
+      const currentCount = await contract.getCount();
+      setCount(currentCount.toString());
+      setError("");
+    } catch (err) {
+      setError("Failed to refresh count from chain.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const increment = async () => {
     if (!contract) return;
-    const tx = await contract.increment();
-    await tx.wait();
-    const updatedCount = await contract.getCount();
-    setCount(updatedCount.toString());
+    try {
+      const tx = await contract.increment();
+      await tx.wait();
+      const updatedCount = await contract.getCount();
+      setCount(updatedCount.toString());
+      setActivities((prev) => [
+        {
+          type: "Increment",
+          hash: tx.hash,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+        ...prev.slice(0, 9),
+      ]);
+      setError("");
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || "Increment failed.");
+    }
   };
 
   const decrement = async () => {
     if (!contract) return;
-    const tx = await contract.decrement();
-    await tx.wait();
-    const updatedCount = await contract.getCount();
-    setCount(updatedCount.toString());
+    try {
+      const tx = await contract.decrement();
+      await tx.wait();
+      const updatedCount = await contract.getCount();
+      setCount(updatedCount.toString());
+      setActivities((prev) => [
+        {
+          type: "Decrement",
+          hash: tx.hash,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+        ...prev.slice(0, 9),
+      ]);
+      setError("");
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || "Decrement failed.");
+    }
   };
 
   return (
@@ -78,27 +121,52 @@ function App() {
             Connect Wallet
           </button>
         ) : (
-          <div className="bg-white shadow-lg rounded-lg  w-80 text-center mt-32">
-            <h2 className="text-2xl font-bold mb-0 border-gray-100 border-b pb-3 pt-3">
-              Counter
-            </h2>
-            <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
-              {count !== null ? count : "Loading..."}
-            </p>
-            <div className="flex justify-between gap-3 border-gray-100 border-t p-4">
-              <button
-                onClick={increment}
-                className="btn-primary cursor-pointer"
-              >
-                Increment
-              </button>
-              <button
-                onClick={decrement}
-                className="btn-primary cursor-pointer"
-              >
-                Decrement
-              </button>
+          <div className="flex flex-col items-center mt-20">
+            <div className="bg-white shadow-lg rounded-lg w-80 text-center">
+              <div className="flex items-center justify-between px-4 py-3 border-gray-100 border-b">
+                <span className="w-5" />
+                <h2 className="text-2xl font-bold">Counter</h2>
+                <button
+                  onClick={syncCount}
+                  disabled={isSyncing}
+                  className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                  title="Refresh latest count from blockchain"
+                >
+                  <svg
+                    className={`w-4 h-4 ${isSyncing ? "animate-spin text-indigo-600" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
+                {count !== null ? count : "Loading..."}
+              </p>
+              <div className="flex justify-between gap-3 border-gray-100 border-t p-4">
+                <button
+                  onClick={increment}
+                  className="btn-primary cursor-pointer"
+                >
+                  Increment
+                </button>
+                <button
+                  onClick={decrement}
+                  className="btn-primary cursor-pointer"
+                >
+                  Decrement
+                </button>
+              </div>
             </div>
+
+            <ActivityFeed activities={activities} />
           </div>
         )}
       </div>
