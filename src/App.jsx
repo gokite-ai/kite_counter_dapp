@@ -8,6 +8,7 @@ import "./index.css";
 
 const CONTRACT_ADDRESS = "0x67924334CAC5f87ce009FF0568E01930a74A1aEA";
 const KITE_TESTNET_CHAIN_ID = 2368;
+const KITESCAN_EXPLORER_URL = "https://testnet.kitescan.ai";
 
 function App() {
   const [count, setCount] = useState(null);
@@ -127,7 +128,7 @@ function App() {
                 <div>
                   <span className="text-gray-500">Tx: </span>
                   <a
-                    href={`https://testnet.kitescan.ai/tx/${lastTxHash}`}
+                    href={`${KITESCAN_EXPLORER_URL}/tx/${lastTxHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline font-mono"
