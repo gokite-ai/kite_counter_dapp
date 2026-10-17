@@ -17,6 +17,7 @@ function App() {
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState("");
   const [activities, setActivities] = useState([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -47,6 +48,20 @@ function App() {
       const currentCount = await contractInstance.getCount();
       setCount(currentCount.toString());
       setError("");
+    }
+  };
+
+  const syncCount = async () => {
+    if (!contract || isSyncing) return;
+    try {
+      setIsSyncing(true);
+      const currentCount = await contract.getCount();
+      setCount(currentCount.toString());
+      setError("");
+    } catch (err) {
+      setError("Failed to refresh count from chain.");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -108,9 +123,30 @@ function App() {
         ) : (
           <div className="flex flex-col items-center mt-20">
             <div className="bg-white shadow-lg rounded-lg w-80 text-center">
-              <h2 className="text-2xl font-bold mb-0 border-gray-100 border-b pb-3 pt-3">
-                Counter
-              </h2>
+              <div className="flex items-center justify-between px-4 py-3 border-gray-100 border-b">
+                <span className="w-5" />
+                <h2 className="text-2xl font-bold">Counter</h2>
+                <button
+                  onClick={syncCount}
+                  disabled={isSyncing}
+                  className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                  title="Refresh latest count from blockchain"
+                >
+                  <svg
+                    className={`w-4 h-4 ${isSyncing ? "animate-spin text-indigo-600" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </button>
+              </div>
               <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
                 {count !== null ? count : "Loading..."}
               </p>
