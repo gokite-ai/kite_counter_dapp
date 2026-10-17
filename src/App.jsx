@@ -11,10 +11,11 @@ const KITE_TESTNET_CHAIN_ID = 2368;
 
 function App() {
   const [count, setCount] = useState(null);
-  const [provider, setProvider] = useState(null);
+  const [, setProvider] = useState(null);
   const [contract, setContract] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState("");
+  const [lastTxHash, setLastTxHash] = useState(null);
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -50,18 +51,28 @@ function App() {
 
   const increment = async () => {
     if (!contract) return;
-    const tx = await contract.increment();
-    await tx.wait();
-    const updatedCount = await contract.getCount();
-    setCount(updatedCount.toString());
+    try {
+      const tx = await contract.increment();
+      setLastTxHash(tx.hash);
+      await tx.wait();
+      const updatedCount = await contract.getCount();
+      setCount(updatedCount.toString());
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || "Transaction failed");
+    }
   };
 
   const decrement = async () => {
     if (!contract) return;
-    const tx = await contract.decrement();
-    await tx.wait();
-    const updatedCount = await contract.getCount();
-    setCount(updatedCount.toString());
+    try {
+      const tx = await contract.decrement();
+      setLastTxHash(tx.hash);
+      await tx.wait();
+      const updatedCount = await contract.getCount();
+      setCount(updatedCount.toString());
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || "Transaction failed");
+    }
   };
 
   return (
@@ -99,6 +110,19 @@ function App() {
                 Decrement
               </button>
             </div>
+            {lastTxHash && (
+              <div className="border-t border-gray-100 p-3 bg-gray-50 rounded-b-lg text-xs text-gray-600">
+                <span>View on KiteScan: </span>
+                <a
+                  href={`https://testnet.kitescan.ai/tx/${lastTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline font-mono"
+                >
+                  {lastTxHash.slice(0, 8)}...{lastTxHash.slice(-6)}
+                </a>
+              </div>
+            )}
           </div>
         )}
       </div>
