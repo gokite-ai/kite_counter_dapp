@@ -50,7 +50,7 @@ function App() {
     }
   };
 
-  // Listen to account changes
+  // Listen to account and chain changes
   useEffect(() => {
     if (!window.ethereum) return;
 
@@ -67,7 +67,21 @@ function App() {
       }
     };
 
+    const handleChainChanged = (chainIdHex) => {
+      const currentChainId = parseInt(chainIdHex, 16);
+      if (currentChainId !== KITE_TESTNET_CHAIN_ID) {
+        setError("Network changed! Please switch back to Kite Testnet (Chain ID 2368).");
+        setContract(null);
+      } else {
+        setError("");
+        if (wallet) {
+          connectWallet();
+        }
+      }
+    };
+
     window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
   }, [wallet]);
 
   const increment = async () => {
