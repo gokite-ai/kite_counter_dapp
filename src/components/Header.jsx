@@ -27,6 +27,7 @@ export default function Header({ wallet, disconnectWallet }) {
               title="Click to copy full address"
               className="text-[#0077FF] font-medium border border-[#A9D1FF] rounded-md transition-all duration-300 flex items-center justify-center bg-gradient-to-t from-[#E1EFFF] to-[#EFF6FF] hover:bg-blue-50 text-sm py-2 px-4 cursor-pointer"
             >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2 inline-block"></span>
               <span>{copied ? "Copied!" : `${wallet.slice(0, 6)}...${wallet.slice(-4)}`}</span>
             </button>
 
