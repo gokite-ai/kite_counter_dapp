@@ -11,10 +11,11 @@ const KITE_TESTNET_CHAIN_ID = 2368;
 
 function App() {
   const [count, setCount] = useState(null);
-  const [provider, setProvider] = useState(null);
+  const [, setProvider] = useState(null);
   const [contract, setContract] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState("");
+  const [pendingAction, setPendingAction] = useState(null); // 'increment' | 'decrement' | null
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -22,7 +23,7 @@ function App() {
       return;
     }
 
-    if (window.ethereum) {
+    try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const { chainId } = await provider.getNetwork();
@@ -45,24 +46,44 @@ function App() {
       const currentCount = await contractInstance.getCount();
       setCount(currentCount.toString());
       setError("");
+    } catch (err) {
+      setError(err?.message || "Failed to connect wallet.");
     }
   };
 
   const increment = async () => {
-    if (!contract) return;
-    const tx = await contract.increment();
-    await tx.wait();
-    const updatedCount = await contract.getCount();
-    setCount(updatedCount.toString());
+    if (!contract || pendingAction) return;
+    setPendingAction("increment");
+    setError("");
+    try {
+      const tx = await contract.increment();
+      await tx.wait();
+      const updatedCount = await contract.getCount();
+      setCount(updatedCount.toString());
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || "Increment transaction failed.");
+    } finally {
+      setPendingAction(null);
+    }
   };
 
   const decrement = async () => {
-    if (!contract) return;
-    const tx = await contract.decrement();
-    await tx.wait();
-    const updatedCount = await contract.getCount();
-    setCount(updatedCount.toString());
+    if (!contract || pendingAction) return;
+    setPendingAction("decrement");
+    setError("");
+    try {
+      const tx = await contract.decrement();
+      await tx.wait();
+      const updatedCount = await contract.getCount();
+      setCount(updatedCount.toString());
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || "Decrement transaction failed.");
+    } finally {
+      setPendingAction(null);
+    }
   };
+
+  const isPending = pendingAction !== null;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-between mainbg">
@@ -88,15 +109,17 @@ function App() {
             <div className="flex justify-between gap-3 border-gray-100 border-t p-4">
               <button
                 onClick={increment}
-                className="btn-primary cursor-pointer"
+                disabled={isPending}
+                className="btn-primary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Increment
+                {pendingAction === "increment" ? "Incrementing..." : "Increment"}
               </button>
               <button
                 onClick={decrement}
-                className="btn-primary cursor-pointer"
+                disabled={isPending}
+                className="btn-primary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Decrement
+                {pendingAction === "decrement" ? "Decrementing..." : "Decrement"}
               </button>
             </div>
           </div>
