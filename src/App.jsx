@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import ActivityFeed from "./components/ActivityFeed";
 import CONTRACT_ABI from "../abis/Counter.json";
 import "./index.css";
 
@@ -89,21 +90,51 @@ function App() {
 
       setProvider(updatedProvider);
       setWallet(await signer.getAddress());
-
-      const contractInstance = new ethers.Contract(
-        CONTRACT_ADDRESS,
-        CONTRACT_ABI,
-        signer
-      );
-      setContract(contractInstance);
-
-      const currentCount = await contractInstance.getCount();
-      setCount(currentCount.toString());
+      await initializeContract(signer);
       setError("");
     } catch (err) {
       setError(err?.message || "Failed to connect wallet.");
     }
   };
+
+  // Listen to account and chain changes with cleanup
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleAccountsChanged = async (accounts) => {
+      if (accounts.length === 0) {
+        setWallet(null);
+        setContract(null);
+        setCount(null);
+      } else if (accounts[0] !== wallet) {
+        setWallet(accounts[0]);
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        await initializeContract(signer);
+      }
+    };
+
+    const handleChainChanged = (chainIdHex) => {
+      const currentChainId = parseInt(chainIdHex, 16);
+      if (currentChainId !== KITE_TESTNET_CHAIN_ID) {
+        setError("Network changed! Please switch back to Kite Testnet (Chain ID 2368).");
+        setContract(null);
+      } else {
+        setError("");
+        if (wallet) {
+          connectWallet();
+        }
+      }
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
+
+    return () => {
+      window.ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
+      window.ethereum.removeListener?.("chainChanged", handleChainChanged);
+    };
+  }, [wallet]);
 
   const increment = async () => {
     if (!contract) return;
@@ -131,7 +162,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-between mainbg">
-      <Header wallet={wallet} />
+      <Header wallet={wallet} disconnectWallet={disconnectWallet} />
       <div className="flex flex-col items-center p-6 flex-1 w-full">
         {error && (
           <div className="flex flex-col items-center gap-2 mb-4">
@@ -156,27 +187,52 @@ function App() {
             Connect Wallet
           </button>
         ) : (
-          <div className="bg-white shadow-lg rounded-lg  w-80 text-center mt-32">
-            <h2 className="text-2xl font-bold mb-0 border-gray-100 border-b pb-3 pt-3">
-              Counter
-            </h2>
-            <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
-              {count !== null ? count : "Loading..."}
-            </p>
-            <div className="flex justify-between gap-3 border-gray-100 border-t p-4">
-              <button
-                onClick={increment}
-                className="btn-primary cursor-pointer"
-              >
-                Increment
-              </button>
-              <button
-                onClick={decrement}
-                className="btn-primary cursor-pointer"
-              >
-                Decrement
-              </button>
+          <div className="flex flex-col items-center mt-20">
+            <div className="bg-white shadow-lg rounded-lg w-80 text-center">
+              <div className="flex items-center justify-between px-4 py-3 border-gray-100 border-b">
+                <span className="w-5" />
+                <h2 className="text-2xl font-bold">Counter</h2>
+                <button
+                  onClick={syncCount}
+                  disabled={isSyncing}
+                  className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                  title="Refresh latest count from blockchain"
+                >
+                  <svg
+                    className={`w-4 h-4 ${isSyncing ? "animate-spin text-indigo-600" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
+                {count !== null ? count : "Loading..."}
+              </p>
+              <div className="flex justify-between gap-3 border-gray-100 border-t p-4">
+                <button
+                  onClick={increment}
+                  className="btn-primary cursor-pointer"
+                >
+                  Increment
+                </button>
+                <button
+                  onClick={decrement}
+                  className="btn-primary cursor-pointer"
+                >
+                  Decrement
+                </button>
+              </div>
             </div>
+
+            <ActivityFeed activities={activities} />
           </div>
         )}
       </div>
