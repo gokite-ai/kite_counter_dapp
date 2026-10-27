@@ -111,7 +111,18 @@ function App() {
     <div className="min-h-screen flex flex-col items-center justify-between mainbg">
       <Header wallet={wallet} />
       <div className="flex flex-col items-center p-6 flex-1 w-full">
-        {error && <p className="text-red-500 mb-4">{error}</p>}
+        {error && (
+          <div className="flex items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm mb-4 max-w-md w-full">
+            <span>{error}</span>
+            <button
+              onClick={() => setError("")}
+              className="text-red-400 hover:text-red-700 font-bold ml-2 cursor-pointer text-base"
+              title="Dismiss error"
+            >
+              &times;
+            </button>
+          </div>
+        )}
 
         {!wallet ? (
           <button
