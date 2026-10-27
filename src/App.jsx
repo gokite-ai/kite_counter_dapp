@@ -1,14 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import ActivityFeed from "./components/ActivityFeed";
 import CONTRACT_ABI from "../abis/Counter.json";
 import "./index.css";
 
 const CONTRACT_ADDRESS = "0x67924334CAC5f87ce009FF0568E01930a74A1aEA";
 const KITE_TESTNET_CHAIN_ID = 2368;
 const KITESCAN_EXPLORER_URL = "https://testnet.kitescan.ai";
+
+const KITE_TESTNET_PARAMS = {
+  chainId: "0x940", // 2368 in hex
+  chainName: "Kite AI Testnet",
+  nativeCurrency: {
+    name: "KITE",
+    symbol: "KITE",
+    decimals: 18,
+  },
+  rpcUrls: ["https://rpc-testnet.kitescan.ai"],
+  blockExplorerUrls: ["https://testnet.kitescan.ai"],
+};
 
 function App() {
   const [count, setCount] = useState(null);
@@ -25,29 +38,25 @@ function App() {
       return;
     }
 
-    if (window.ethereum) {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const { chainId } = await provider.getNetwork();
+    try {
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      const network = await browserProvider.getNetwork();
 
-      if (parseInt(chainId) !== KITE_TESTNET_CHAIN_ID) {
-        setError("Wrong network! Please switch to Kite Testnet.");
-        return;
+      if (Number(network.chainId) !== KITE_TESTNET_CHAIN_ID) {
+        const switched = await switchOrAddKiteNetwork();
+        if (!switched) return;
       }
 
-      setProvider(provider);
+      // Re-instantiate provider after network switch to ensure active chain
+      const updatedProvider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await updatedProvider.getSigner();
+
+      setProvider(updatedProvider);
       setWallet(await signer.getAddress());
-
-      const contractInstance = new ethers.Contract(
-        CONTRACT_ADDRESS,
-        CONTRACT_ABI,
-        signer
-      );
-      setContract(contractInstance);
-
-      const currentCount = await contractInstance.getCount();
-      setCount(currentCount.toString());
+      await initializeContract(signer);
       setError("");
+    } catch (err) {
+      setError(err?.message || "Failed to connect wallet.");
     }
   };
 
@@ -90,9 +99,22 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-between mainbg">
-      <Header wallet={wallet} />
+      <Header wallet={wallet} disconnectWallet={disconnectWallet} />
       <div className="flex flex-col items-center p-6 flex-1 w-full">
-        {error && <p className="text-red-500 mb-4">{error}</p>}
+        {error && (
+          <div className="flex flex-col items-center gap-2 mb-4">
+            <p className="text-red-500">{error}</p>
+            {error.includes("Kite AI Testnet") && (
+              <button
+                onClick={switchOrAddKiteNetwork}
+                disabled={isSwitching}
+                className="btn-secondary text-xs px-3 py-1 cursor-pointer"
+              >
+                {isSwitching ? "Switching..." : "Switch to Kite Testnet"}
+              </button>
+            )}
+          </div>
+        )}
 
         {!wallet ? (
           <button
@@ -102,26 +124,49 @@ function App() {
             Connect Wallet
           </button>
         ) : (
-          <div className="bg-white shadow-lg rounded-lg  w-80 text-center mt-32">
-            <h2 className="text-2xl font-bold mb-0 border-gray-100 border-b pb-3 pt-3">
-              Counter
-            </h2>
-            <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
-              {count !== null ? count : "Loading..."}
-            </p>
-            <div className="flex justify-between gap-3 border-gray-100 border-t p-4">
-              <button
-                onClick={increment}
-                className="btn-primary cursor-pointer"
-              >
-                Increment
-              </button>
-              <button
-                onClick={decrement}
-                className="btn-primary cursor-pointer"
-              >
-                Decrement
-              </button>
+          <div className="flex flex-col items-center mt-20">
+            <div className="bg-white shadow-lg rounded-lg w-80 text-center">
+              <div className="flex items-center justify-between px-4 py-3 border-gray-100 border-b">
+                <span className="w-5" />
+                <h2 className="text-2xl font-bold">Counter</h2>
+                <button
+                  onClick={syncCount}
+                  disabled={isSyncing}
+                  className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                  title="Refresh latest count from blockchain"
+                >
+                  <svg
+                    className={`w-4 h-4 ${isSyncing ? "animate-spin text-indigo-600" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
+                {count !== null ? count : "Loading..."}
+              </p>
+              <div className="flex justify-between gap-3 border-gray-100 border-t p-4">
+                <button
+                  onClick={increment}
+                  className="btn-primary cursor-pointer"
+                >
+                  Increment
+                </button>
+                <button
+                  onClick={decrement}
+                  className="btn-primary cursor-pointer"
+                >
+                  Decrement
+                </button>
+              </div>
             </div>
             {lastTxHash && (
               <div className="border-t border-gray-100 p-3 bg-gray-50 rounded-b-lg text-xs text-gray-600 flex items-center justify-between">
