@@ -107,9 +107,17 @@ function App() {
     }
   };
 
+  const disconnectWallet = () => {
+    setWallet(null);
+    setContract(null);
+    setProvider(null);
+    setCount(null);
+    setError("");
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-between mainbg">
-      <Header wallet={wallet} />
+      <Header wallet={wallet} disconnectWallet={disconnectWallet} />
       <div className="flex flex-col items-center p-6 flex-1 w-full">
         {error && (
           <div className="flex items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm mb-4 max-w-md w-full">
