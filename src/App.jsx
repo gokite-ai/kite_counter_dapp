@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 
 import Header from "./components/Header";
@@ -12,12 +12,23 @@ const KITE_TESTNET_CHAIN_ID = 2368;
 
 function App() {
   const [count, setCount] = useState(null);
-  const [provider, setProvider] = useState(null);
+  const [, setProvider] = useState(null);
   const [contract, setContract] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState("");
   const [activities, setActivities] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  const initializeContract = async (signer) => {
+    const contractInstance = new ethers.Contract(
+      CONTRACT_ADDRESS,
+      CONTRACT_ABI,
+      signer
+    );
+    setContract(contractInstance);
+    const currentCount = await contractInstance.getCount();
+    setCount(currentCount.toString());
+  };
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -37,33 +48,49 @@ function App() {
 
       setProvider(provider);
       setWallet(await signer.getAddress());
-
-      const contractInstance = new ethers.Contract(
-        CONTRACT_ADDRESS,
-        CONTRACT_ABI,
-        signer
-      );
-      setContract(contractInstance);
-
-      const currentCount = await contractInstance.getCount();
-      setCount(currentCount.toString());
+      await initializeContract(signer);
       setError("");
     }
   };
 
-  const syncCount = async () => {
-    if (!contract || isSyncing) return;
-    try {
-      setIsSyncing(true);
-      const currentCount = await contract.getCount();
-      setCount(currentCount.toString());
-      setError("");
-    } catch (err) {
-      setError("Failed to refresh count from chain.");
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  // Listen to account and chain changes with cleanup
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleAccountsChanged = async (accounts) => {
+      if (accounts.length === 0) {
+        setWallet(null);
+        setContract(null);
+        setCount(null);
+      } else if (accounts[0] !== wallet) {
+        setWallet(accounts[0]);
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        await initializeContract(signer);
+      }
+    };
+
+    const handleChainChanged = (chainIdHex) => {
+      const currentChainId = parseInt(chainIdHex, 16);
+      if (currentChainId !== KITE_TESTNET_CHAIN_ID) {
+        setError("Network changed! Please switch back to Kite Testnet (Chain ID 2368).");
+        setContract(null);
+      } else {
+        setError("");
+        if (wallet) {
+          connectWallet();
+        }
+      }
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
+
+    return () => {
+      window.ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
+      window.ethereum.removeListener?.("chainChanged", handleChainChanged);
+    };
+  }, [wallet]);
 
   const increment = async () => {
     if (!contract) return;
