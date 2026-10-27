@@ -9,6 +9,7 @@ import "./index.css";
 
 const CONTRACT_ADDRESS = "0x67924334CAC5f87ce009FF0568E01930a74A1aEA";
 const KITE_TESTNET_CHAIN_ID = 2368;
+const KITESCAN_EXPLORER_URL = "https://testnet.kitescan.ai";
 
 const KITE_TESTNET_PARAMS = {
   chainId: "0x940", // 2368 in hex
@@ -28,46 +29,8 @@ function App() {
   const [contract, setContract] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState("");
-  const [isSwitching, setIsSwitching] = useState(false);
-
-  const switchOrAddKiteNetwork = async () => {
-    if (!window.ethereum) {
-      setError("Please install MetaMask!");
-      return false;
-    }
-
-    setIsSwitching(true);
-    try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: KITE_TESTNET_PARAMS.chainId }],
-      });
-      setError("");
-      return true;
-    } catch (switchError) {
-      // Error code 4902 indicates that the chain has not been added to MetaMask.
-      if (
-        switchError.code === 4902 ||
-        switchError?.data?.originalError?.code === 4902
-      ) {
-        try {
-          await window.ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [KITE_TESTNET_PARAMS],
-          });
-          setError("");
-          return true;
-        } catch (addError) {
-          setError(addError?.message || "Failed to add Kite Testnet to your wallet.");
-          return false;
-        }
-      }
-      setError("Please switch your wallet to Kite AI Testnet (Chain ID 2368).");
-      return false;
-    } finally {
-      setIsSwitching(false);
-    }
-  };
+  const [lastTxHash, setLastTxHash] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -97,54 +60,27 @@ function App() {
     }
   };
 
-  // Listen to account and chain changes with cleanup
-  useEffect(() => {
-    if (!window.ethereum) return;
-
-    const handleAccountsChanged = async (accounts) => {
-      if (accounts.length === 0) {
-        setWallet(null);
-        setContract(null);
-        setCount(null);
-      } else if (accounts[0] !== wallet) {
-        setWallet(accounts[0]);
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
-        await initializeContract(signer);
-      }
-    };
-
-    const handleChainChanged = (chainIdHex) => {
-      const currentChainId = parseInt(chainIdHex, 16);
-      if (currentChainId !== KITE_TESTNET_CHAIN_ID) {
-        setError("Network changed! Please switch back to Kite Testnet (Chain ID 2368).");
-        setContract(null);
-      } else {
-        setError("");
-        if (wallet) {
-          connectWallet();
-        }
-      }
-    };
-
-    window.ethereum.on("accountsChanged", handleAccountsChanged);
-    window.ethereum.on("chainChanged", handleChainChanged);
-
-    return () => {
-      window.ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
-      window.ethereum.removeListener?.("chainChanged", handleChainChanged);
-    };
-  }, [wallet]);
+  const copyTxHash = async () => {
+    if (!lastTxHash) return;
+    try {
+      await navigator.clipboard.writeText(lastTxHash);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback if clipboard API is blocked
+    }
+  };
 
   const increment = async () => {
     if (!contract) return;
     try {
       const tx = await contract.increment();
+      setLastTxHash(tx.hash);
       await tx.wait();
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
     } catch (err) {
-      setError(err?.shortMessage || err?.message || "Transaction failed.");
+      setError(err?.shortMessage || err?.message || "Transaction failed");
     }
   };
 
@@ -152,11 +88,12 @@ function App() {
     if (!contract) return;
     try {
       const tx = await contract.decrement();
+      setLastTxHash(tx.hash);
       await tx.wait();
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
     } catch (err) {
-      setError(err?.shortMessage || err?.message || "Transaction failed.");
+      setError(err?.shortMessage || err?.message || "Transaction failed");
     }
   };
 
@@ -231,8 +168,27 @@ function App() {
                 </button>
               </div>
             </div>
-
-            <ActivityFeed activities={activities} />
+            {lastTxHash && (
+              <div className="border-t border-gray-100 p-3 bg-gray-50 rounded-b-lg text-xs text-gray-600 flex items-center justify-between">
+                <div>
+                  <span className="text-gray-500">Tx: </span>
+                  <a
+                    href={`${KITESCAN_EXPLORER_URL}/tx/${lastTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline font-mono"
+                  >
+                    {lastTxHash.slice(0, 6)}...{lastTxHash.slice(-4)}
+                  </a>
+                </div>
+                <button
+                  onClick={copyTxHash}
+                  className="text-gray-500 hover:text-gray-800 text-[11px] px-2 py-0.5 rounded border border-gray-200 bg-white cursor-pointer"
+                >
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
