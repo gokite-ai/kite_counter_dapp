@@ -24,6 +24,20 @@ const KITE_TESTNET_PARAMS = {
 };
 
 function App() {
+  const [discoveredWallets, setDiscoveredWallets] = useState([]);
+
+  useEffect(() => {
+    const handleAnnouncement = (event) => {
+      if (!event.detail) return;
+      setDiscoveredWallets((prev) => {
+        if (prev.some((w) => w.info.uuid === event.detail.info.uuid)) return prev;
+        return [...prev, event.detail];
+      });
+    };
+    window.addEventListener("eip6963:announceProvider", handleAnnouncement);
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+    return () => window.removeEventListener("eip6963:announceProvider", handleAnnouncement);
+  }, []);
   const [count, setCount] = useState(null);
   const [, setProvider] = useState(null);
   const [contract, setContract] = useState(null);
@@ -39,8 +53,8 @@ function App() {
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const { chainId } = await provider.getNetwork();
+      let signer = await provider.getSigner();
+      const network = await provider.getNetwork();
 
       if (Number(network.chainId) !== KITE_TESTNET_CHAIN_ID) {
         const switched = await switchOrAddKiteNetwork();
@@ -49,7 +63,7 @@ function App() {
 
       // Re-instantiate provider after network switch to ensure active chain
       const updatedProvider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await updatedProvider.getSigner();
+      signer = await updatedProvider.getSigner();
 
       setProvider(updatedProvider);
       setWallet(await signer.getAddress());
@@ -114,12 +128,24 @@ function App() {
         )}
 
         {!wallet ? (
-          <button
+          <div className="flex flex-col items-center gap-2 mt-24">
+            {discoveredWallets.length > 0 && (
+              <div className="text-xs text-gray-400 mb-1 flex items-center gap-1.5">
+                <span>EIP-6963 Wallets detected:</span>
+                {discoveredWallets.map((w) => (
+                  <span key={w.info.uuid} className="font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">
+                    {w.info.name}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
             onClick={connectWallet}
             className="btn-secondary cursor-pointer mt-24"
           >
             Connect Wallet
           </button>
+          </div>
         ) : (
           <div className="bg-white shadow-lg rounded-lg  w-80 text-center mt-32">
             <h2 className="text-2xl font-bold mb-0 border-gray-100 border-b pb-3 pt-3">
