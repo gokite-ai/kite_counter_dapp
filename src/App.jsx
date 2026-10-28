@@ -24,6 +24,15 @@ const KITE_TESTNET_PARAMS = {
 };
 
 function App() {
+  const [balance, setBalance] = useState(null);
+
+  const refreshBalance = async (userAddress, activeProvider) => {
+    try {
+      if (!userAddress || !activeProvider) return;
+      const bal = await activeProvider.getBalance(userAddress);
+      setBalance(Number(ethers.formatEther(bal)).toFixed(4));
+    } catch {}
+  };
   const [count, setCount] = useState(null);
   const [, setProvider] = useState(null);
   const [contract, setContract] = useState(null);
@@ -39,8 +48,8 @@ function App() {
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const { chainId } = await provider.getNetwork();
+      let signer = await provider.getSigner();
+      const network = await provider.getNetwork();
 
       if (Number(network.chainId) !== KITE_TESTNET_CHAIN_ID) {
         const switched = await switchOrAddKiteNetwork();
@@ -49,11 +58,12 @@ function App() {
 
       // Re-instantiate provider after network switch to ensure active chain
       const updatedProvider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await updatedProvider.getSigner();
+      signer = await updatedProvider.getSigner();
 
       setProvider(updatedProvider);
       setWallet(await signer.getAddress());
       await initializeContract(signer);
+      await refreshBalance(await signer.getAddress(), updatedProvider);
       setError("");
     } catch (err) {
       setError(err?.message || "Failed to connect wallet.");
@@ -96,7 +106,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-between mainbg">
-      <Header wallet={wallet} disconnectWallet={disconnectWallet} />
+      <Header wallet={wallet} balance={balance} disconnectWallet={disconnectWallet} />
       <div className="flex flex-col items-center p-6 flex-1 w-full">
         {error && (
           <div className="flex flex-col items-center gap-2 mb-4">

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import logo from "../assets/network_logo.svg";
 
-export default function Header({ wallet, disconnectWallet }) {
+export default function Header({ wallet, balance, disconnectWallet }) {
   const [copied, setCopied] = useState(false);
 
   const copyAddress = async () => {
@@ -22,6 +22,11 @@ export default function Header({ wallet, disconnectWallet }) {
       <div className="flex items-center space-x-3">
         {wallet && (
           <div className="flex items-center gap-2">
+            {balance !== null && (
+              <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                {balance} KITE
+              </span>
+            )}
             <button
               onClick={copyAddress}
               title="Click to copy full address"
