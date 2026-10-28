@@ -24,6 +24,26 @@ const KITE_TESTNET_PARAMS = {
 };
 
 function App() {
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const playChime = (freq = 880, duration = 0.15) => {
+    if (!soundEnabled || typeof window === "undefined") return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch {}
+  };
   const [count, setCount] = useState(null);
   const [, setProvider] = useState(null);
   const [contract, setContract] = useState(null);
@@ -39,8 +59,8 @@ function App() {
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const { chainId } = await provider.getNetwork();
+      let signer = await provider.getSigner();
+      const network = await provider.getNetwork();
 
       if (Number(network.chainId) !== KITE_TESTNET_CHAIN_ID) {
         const switched = await switchOrAddKiteNetwork();
@@ -49,7 +69,7 @@ function App() {
 
       // Re-instantiate provider after network switch to ensure active chain
       const updatedProvider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await updatedProvider.getSigner();
+      signer = await updatedProvider.getSigner();
 
       setProvider(updatedProvider);
       setWallet(await signer.getAddress());
@@ -69,6 +89,7 @@ function App() {
       await tx.wait();
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
+      playChime(1046.5, 0.25);
     } catch (err) {
       setError(err?.shortMessage || err?.message || "Increment transaction failed.");
     } finally {
@@ -85,6 +106,7 @@ function App() {
       await tx.wait();
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
+      playChime(1046.5, 0.25);
     } catch (err) {
       setError(err?.shortMessage || err?.message || "Decrement transaction failed.");
     } finally {
