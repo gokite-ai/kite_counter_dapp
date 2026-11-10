@@ -24,28 +24,25 @@ const KITE_TESTNET_PARAMS = {
 };
 
 function App() {
-  const [activities, setActivities] = useState(() => {
-    try {
-      const saved = localStorage.getItem("kite_counter_activities");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
-  const recordActivity = (type, hash) => {
-    const item = {
-      type,
-      hash,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-    };
-    setActivities((prev) => {
-      const updated = [item, ...prev].slice(0, 10);
-      try {
-        localStorage.setItem("kite_counter_activities", JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
+  const playChime = (freq = 880, duration = 0.15) => {
+    if (!soundEnabled || typeof window === "undefined") return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch {}
   };
   const [count, setCount] = useState(null);
   const [, setProvider] = useState(null);
@@ -93,6 +90,7 @@ function App() {
       recordActivity("Increment", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
+      playChime(1046.5, 0.25);
     } catch (err) {
       setError(err?.shortMessage || err?.message || "Increment transaction failed.");
     } finally {
@@ -110,6 +108,7 @@ function App() {
       recordActivity("Decrement", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
+      playChime(1046.5, 0.25);
     } catch (err) {
       setError(err?.shortMessage || err?.message || "Decrement transaction failed.");
     } finally {
