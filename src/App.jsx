@@ -24,25 +24,31 @@ const KITE_TESTNET_PARAMS = {
 };
 
 function App() {
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const playChime = (freq = 880, duration = 0.15) => {
-    if (!soundEnabled || typeof window === "undefined") return;
+  // Background polling for counter updates from other network participants
+  useEffect(() => {
+    if (!contract) return;
+    const interval = setInterval(async () => {
+      try {
+        const remoteCount = await contract.getCount();
+        setCount(remoteCount.toString());
+      } catch {}
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [contract]);
+
+  const syncCountNow = async () => {
+    if (!contract || isSyncing) return;
+    setIsSyncing(true);
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, ctx.currentTime);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + duration);
-    } catch {}
+      const updated = await contract.getCount();
+      setCount(updated.toString());
+    } catch (e) {
+      setError("Manual sync failed");
+    } finally {
+      setIsSyncing(false);
+    }
   };
   const [count, setCount] = useState(null);
   const [, setProvider] = useState(null);
@@ -147,9 +153,23 @@ function App() {
         ) : (
           <>
           <div className="bg-white shadow-lg rounded-lg  w-80 text-center mt-32">
-            <h2 className="text-2xl font-bold mb-0 border-gray-100 border-b pb-3 pt-3">
-              Counter
-            </h2>
+            <div className="flex items-center justify-between border-gray-100 border-b px-5 py-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-bold">Counter</h2>
+                <span className="flex h-2 w-2 relative" title="Live Polling Active">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={syncCountNow}
+                disabled={isSyncing}
+                className="text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                {isSyncing ? "Syncing..." : "Sync"}
+              </button>
+            </div>
             <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
               {count !== null ? count : "Loading..."}
             </p>
