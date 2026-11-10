@@ -25,6 +25,29 @@ const KITE_TESTNET_PARAMS = {
 };
 
 function App() {
+  const [activities, setActivities] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kite_counter_activities");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const recordActivity = (type, hash) => {
+    const item = {
+      type,
+      hash,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    };
+    setActivities((prev) => {
+      const updated = [item, ...prev].slice(0, 10);
+      try {
+        localStorage.setItem("kite_counter_activities", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
   const [count, setCount] = useState(null);
   const [, setProvider] = useState(null);
   const [contract, setContract] = useState(null);
@@ -69,6 +92,7 @@ function App() {
     try {
       const tx = await contract.increment();
       await tx.wait();
+      recordActivity("Increment", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
     } catch (err) {
@@ -85,6 +109,7 @@ function App() {
     try {
       const tx = await contract.decrement();
       await tx.wait();
+      recordActivity("Decrement", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
     } catch (err) {
@@ -123,6 +148,7 @@ function App() {
             Connect Wallet
           </button>
         ) : (
+          <>
           <div className="bg-white shadow-lg rounded-lg  w-80 text-center mt-32">
             <h2 className="text-2xl font-bold mb-0 border-gray-100 border-b pb-3 pt-3">
               Counter
@@ -169,6 +195,8 @@ function App() {
               </div>
             )}
           </div>
+            <ActivityFeed activities={activities} />
+          </>
         )}
       </div>
       <Footer />
