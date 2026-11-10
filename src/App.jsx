@@ -7,22 +7,9 @@ import ActivityFeed from "./components/ActivityFeed";
 import StepSelector from "./components/StepSelector";
 import CONTRACT_ABI from "../abis/Counter.json";
 import "./index.css";
+import { KITE_TESTNET_CHAIN_ID, KITESCAN_EXPLORER_URL, KITE_TESTNET_PARAMS } from "./kite-network";
 
 const CONTRACT_ADDRESS = "0x67924334CAC5f87ce009FF0568E01930a74A1aEA";
-const KITE_TESTNET_CHAIN_ID = 2368;
-const KITESCAN_EXPLORER_URL = "https://testnet.kitescan.ai";
-
-const KITE_TESTNET_PARAMS = {
-  chainId: "0x940", // 2368 in hex
-  chainName: "Kite AI Testnet",
-  nativeCurrency: {
-    name: "KITE",
-    symbol: "KITE",
-    decimals: 18,
-  },
-  rpcUrls: ["https://rpc-testnet.kitescan.ai"],
-  blockExplorerUrls: ["https://testnet.kitescan.ai"],
-};
 
 function App() {
   const [discoveredWallets, setDiscoveredWallets] = useState([]);
