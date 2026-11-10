@@ -87,6 +87,7 @@ function App() {
     try {
       const tx = await contract.increment();
       await tx.wait();
+      recordActivity("Increment", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
       playChime(1046.5, 0.25);
@@ -104,6 +105,7 @@ function App() {
     try {
       const tx = await contract.decrement();
       await tx.wait();
+      recordActivity("Decrement", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
       playChime(1046.5, 0.25);
@@ -143,6 +145,7 @@ function App() {
             Connect Wallet
           </button>
         ) : (
+          <>
           <div className="bg-white shadow-lg rounded-lg  w-80 text-center mt-32">
             <h2 className="text-2xl font-bold mb-0 border-gray-100 border-b pb-3 pt-3">
               Counter
@@ -188,6 +191,8 @@ function App() {
               </div>
             )}
           </div>
+            <ActivityFeed activities={activities} />
+          </>
         )}
       </div>
       <Footer />
