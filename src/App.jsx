@@ -93,8 +93,10 @@ function App() {
     try {
       const tx = await contract.increment();
       await tx.wait();
+      recordActivity("Increment", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
+      playChime(1046.5, 0.25);
     } catch (err) {
       setError(err?.shortMessage || err?.message || "Increment transaction failed.");
     } finally {
@@ -109,8 +111,10 @@ function App() {
     try {
       const tx = await contract.decrement();
       await tx.wait();
+      recordActivity("Decrement", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
+      playChime(1046.5, 0.25);
     } catch (err) {
       setError(err?.shortMessage || err?.message || "Decrement transaction failed.");
     } finally {
@@ -147,6 +151,7 @@ function App() {
             Connect Wallet
           </button>
         ) : (
+          <>
           <div className="bg-white shadow-lg rounded-lg  w-80 text-center mt-32">
             <div className="flex items-center justify-between border-gray-100 border-b px-5 py-3">
               <div className="flex items-center gap-2">
@@ -206,6 +211,8 @@ function App() {
               </div>
             )}
           </div>
+            <ActivityFeed activities={activities} />
+          </>
         )}
       </div>
       <Footer />
