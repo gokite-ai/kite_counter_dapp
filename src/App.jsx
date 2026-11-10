@@ -25,28 +25,31 @@ const KITE_TESTNET_PARAMS = {
 };
 
 function App() {
-  const [activities, setActivities] = useState(() => {
-    try {
-      const saved = localStorage.getItem("kite_counter_activities");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const recordActivity = (type, hash) => {
-    const item = {
-      type,
-      hash,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-    };
-    setActivities((prev) => {
-      const updated = [item, ...prev].slice(0, 10);
+  // Background polling for counter updates from other network participants
+  useEffect(() => {
+    if (!contract) return;
+    const interval = setInterval(async () => {
       try {
-        localStorage.setItem("kite_counter_activities", JSON.stringify(updated));
+        const remoteCount = await contract.getCount();
+        setCount(remoteCount.toString());
       } catch {}
-      return updated;
-    });
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [contract]);
+
+  const syncCountNow = async () => {
+    if (!contract || isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const updated = await contract.getCount();
+      setCount(updated.toString());
+    } catch (e) {
+      setError("Manual sync failed");
+    } finally {
+      setIsSyncing(false);
+    }
   };
   const [count, setCount] = useState(null);
   const [, setProvider] = useState(null);
@@ -95,6 +98,7 @@ function App() {
       recordActivity("Increment", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
+      playChime(1046.5, 0.25);
     } catch (err) {
       setError(err?.shortMessage || err?.message || "Increment transaction failed.");
     } finally {
@@ -112,6 +116,7 @@ function App() {
       recordActivity("Decrement", tx.hash);
       const updatedCount = await contract.getCount();
       setCount(updatedCount.toString());
+      playChime(1046.5, 0.25);
     } catch (err) {
       setError(err?.shortMessage || err?.message || "Decrement transaction failed.");
     } finally {
@@ -150,9 +155,23 @@ function App() {
         ) : (
           <>
           <div className="bg-white shadow-lg rounded-lg  w-80 text-center mt-32">
-            <h2 className="text-2xl font-bold mb-0 border-gray-100 border-b pb-3 pt-3">
-              Counter
-            </h2>
+            <div className="flex items-center justify-between border-gray-100 border-b px-5 py-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-bold">Counter</h2>
+                <span className="flex h-2 w-2 relative" title="Live Polling Active">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={syncCountNow}
+                disabled={isSyncing}
+                className="text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                {isSyncing ? "Syncing..." : "Sync"}
+              </button>
+            </div>
             <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
               {count !== null ? count : "Loading..."}
             </p>
