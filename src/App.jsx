@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import ActivityFeed from "./components/ActivityFeed";
+import StepSelector from "./components/StepSelector";
 import CONTRACT_ABI from "../abis/Counter.json";
 import "./index.css";
 
@@ -55,7 +56,8 @@ function App() {
   const [contract, setContract] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState("");
-  const [pendingAction, setPendingAction] = useState(null); // 'increment' | 'decrement' | null
+  const [pendingAction, setPendingAction] = useState(null);
+  const [stepMultiplier, setStepMultiplier] = useState(1); // 'increment' | 'decrement' | null
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -173,6 +175,7 @@ function App() {
             <p className="text-7xl font-bold text-gray-800 mb-0 pb-10 pt-10 mb-5 mt-5">
               {count !== null ? count : "Loading..."}
             </p>
+            <div className="px-4 pt-3 pb-1"><StepSelector step={stepMultiplier} onSelectStep={setStepMultiplier} disabled={isPending} /></div>
             <div className="flex justify-between gap-3 border-gray-100 border-t p-4">
               <button
                 onClick={increment}
