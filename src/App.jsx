@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ethers } from "ethers";
 
 import Header from "./components/Header";
@@ -8,6 +8,7 @@ import StepSelector from "./components/StepSelector";
 import CONTRACT_ABI from "../abis/Counter.json";
 import "./index.css";
 import { playCounterClick } from "./utils/audioFeedback";
+import { createRevisionGuard, selectKiteNetwork } from "./wallet-session";
 import { KITE_TESTNET_CHAIN_ID, KITESCAN_EXPLORER_URL, KITE_TESTNET_PARAMS } from "./kite-network";
 
 const CONTRACT_ADDRESS = "0x67924334CAC5f87ce009FF0568E01930a74A1aEA";
@@ -35,19 +36,34 @@ function App() {
   const [stepMultiplier, setStepMultiplier] = useState(1);
   const [activities, setActivities] = useState([]);
   const [lastTxHash, setLastTxHash] = useState(null);
-  const [copied, setCopied] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const disconnectWallet = () => {
-    // A dApp can clear its own session, but cannot disconnect a wallet extension.
+  const sessionGuard = useRef(null);
+  if (!sessionGuard.current) sessionGuard.current = createRevisionGuard();
+  const countGuard = useRef(null);
+  if (!countGuard.current) countGuard.current = createRevisionGuard();
+  const connectionAttempt = useRef(0);
+  const switchingByApp = useRef(false);
+  const [copiedHash, setCopiedHash] = useState(null);
+  const sessionValid = (revision) => sessionGuard.current.isCurrent(revision);
+
+  const resetSession = () => {
+    sessionGuard.current.invalidate();
+    countGuard.current.invalidate();
+    connectionAttempt.current += 1;
     setWallet(null);
     setContract(null);
     setCount(null);
     setLastTxHash(null);
+    setCopiedHash(null);
     setActivities([]);
     setError("");
+    setPendingAction(null);
+    setIsSyncing(false);
   };
+
+  const disconnectWallet = () => resetSession();
 
   const switchOrAddKiteNetwork = async () => {
     if (!window.ethereum) {
@@ -55,41 +71,22 @@ function App() {
       return false;
     }
     setIsSwitching(true);
+    switchingByApp.current = true;
     try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: KITE_TESTNET_PARAMS.chainId }],
-      });
+      await selectKiteNetwork(window.ethereum, KITE_TESTNET_PARAMS);
       return true;
     } catch (err) {
-      if (err?.code === 4902) {
-        try {
-          await window.ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [KITE_TESTNET_PARAMS],
-          });
-          return true;
-        } catch (addError) {
-          setError(addError?.message || "Could not add Kite AI Testnet.");
-          return false;
-        }
-      }
       setError(err?.message || "Could not switch to Kite AI Testnet.");
       return false;
     } finally {
+      switchingByApp.current = false;
       setIsSwitching(false);
     }
   };
 
-  const initializeContract = async (signer) => {
-    const instance = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-    const initialCount = await instance.getCount();
-    setContract(instance);
-    setCount(initialCount.toString());
-  };
-
   const recordActivity = (type, hash) => {
     setLastTxHash(hash);
+    setCopiedHash(null);
     setActivities((previous) => [
       { type, hash, timestamp: new Date().toLocaleTimeString() },
       ...previous,
@@ -97,43 +94,53 @@ function App() {
   };
 
   const syncCountNow = async () => {
-    if (!contract || isSyncing) return;
+    if (!contract || isSyncing || pendingAction) return;
+    const session = sessionGuard.current.capture();
+    const read = countGuard.current.invalidate();
     setIsSyncing(true);
     try {
-      setCount((await contract.getCount()).toString());
-      setError("");
+      const updated = await contract.getCount();
+      if (sessionValid(session) && countGuard.current.isCurrent(read)) {
+        setCount(updated.toString());
+        setError("");
+      }
     } catch (err) {
-      setError(err?.shortMessage || err?.message || "Unable to sync counter.");
+      if (sessionValid(session) && countGuard.current.isCurrent(read)) {
+        setError(err?.shortMessage || err?.message || "Unable to sync counter.");
+      }
     } finally {
-      setIsSyncing(false);
+      if (sessionValid(session) && countGuard.current.isCurrent(read)) setIsSyncing(false);
     }
   };
 
   const copyTxHash = async () => {
     if (!lastTxHash) return;
+    const hash = lastTxHash;
+    const session = sessionGuard.current.capture();
     try {
-      await navigator.clipboard.writeText(lastTxHash);
-      setCopied(true);
+      await navigator.clipboard.writeText(hash);
+      if (sessionValid(session)) setCopiedHash(hash);
     } catch {
-      setError("Unable to copy transaction hash.");
+      if (sessionValid(session)) setError("Unable to copy transaction hash.");
     }
   };
 
   useEffect(() => {
     const ethereum = window.ethereum;
     if (!ethereum?.on) return;
-    const resetSession = () => {
-      setWallet(null);
-      setContract(null);
-      setCount(null);
-      setLastTxHash(null);
-      setActivities([]);
+    const onAccountChange = () => resetSession();
+    const onChainChange = () => {
+      // Even an intentional network switch invalidates existing session data.
+      // The in-progress connection is allowed to re-check the selected chain.
+      const attempt = connectionAttempt.current;
+      resetSession();
+      if (switchingByApp.current) connectionAttempt.current = attempt;
     };
-    ethereum.on("accountsChanged", resetSession);
-    ethereum.on("chainChanged", resetSession);
+    ethereum.on("accountsChanged", onAccountChange);
+    ethereum.on("chainChanged", onChainChange);
     return () => {
-      ethereum.removeListener?.("accountsChanged", resetSession);
-      ethereum.removeListener?.("chainChanged", resetSession);
+      ethereum.removeListener?.("accountsChanged", onAccountChange);
+      ethereum.removeListener?.("chainChanged", onChainChange);
     };
   }, []);
 
@@ -142,64 +149,71 @@ function App() {
       setError("Please install MetaMask!");
       return;
     }
-
+    const attempt = ++connectionAttempt.current;
+    const currentAttempt = () => connectionAttempt.current === attempt;
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      let signer = await provider.getSigner();
+      let provider = new ethers.BrowserProvider(window.ethereum);
       const network = await provider.getNetwork();
-
+      if (!currentAttempt()) return;
       if (Number(network.chainId) !== KITE_TESTNET_CHAIN_ID) {
         const switched = await switchOrAddKiteNetwork();
-        if (!switched) return;
+        if (!currentAttempt() || !switched) return;
       }
-
-      // Re-instantiate provider after network switch to ensure active chain
-      const updatedProvider = new ethers.BrowserProvider(window.ethereum);
-      signer = await updatedProvider.getSigner();
-
-      await initializeContract(signer);
-      setWallet(await signer.getAddress());
+      provider = new ethers.BrowserProvider(window.ethereum);
+      const verifiedNetwork = await provider.getNetwork();
+      if (!currentAttempt()) return;
+      if (Number(verifiedNetwork.chainId) !== KITE_TESTNET_CHAIN_ID) {
+        throw new Error("Kite AI Testnet was not selected.");
+      }
+      const signer = await provider.getSigner();
+      if (!currentAttempt()) return;
+      const address = await signer.getAddress();
+      if (!currentAttempt()) return;
+      const instance = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const initialCount = await instance.getCount();
+      if (!currentAttempt()) return;
+      // Verify the wallet did not change accounts or networks during initialization.
+      const activeChain = await window.ethereum.request({ method: "eth_chainId" });
+      const accounts = await window.ethereum.request({ method: "eth_accounts" });
+      if (!currentAttempt() || Number(activeChain) !== KITE_TESTNET_CHAIN_ID ||
+          !accounts.some((account) => account.toLowerCase() === address.toLowerCase())) return;
+      sessionGuard.current.invalidate();
+      countGuard.current.invalidate();
+      setContract(instance);
+      setCount(initialCount.toString());
+      setWallet(address);
       setError("");
     } catch (err) {
-      setError(err?.message || "Failed to connect wallet.");
+      if (currentAttempt()) setError(err?.message || "Failed to connect wallet.");
     }
   };
 
-  const increment = async () => {
+  const performAction = async (action) => {
     if (!contract || pendingAction) return;
-    setPendingAction("increment");
+    const session = sessionGuard.current.capture();
+    countGuard.current.invalidate(); // Ignore any already-started Sync.
+    setPendingAction(action);
+    setIsSyncing(false);
     setError("");
     try {
-      const tx = await contract.increment();
-      await tx.wait();
-      recordActivity("Increment", tx.hash);
-      const updatedCount = await contract.getCount();
-      setCount(updatedCount.toString());
+      const tx = await contract[action]();
+      if (!sessionValid(session)) return;
+      const receipt = await tx.wait();
+      if (!sessionValid(session)) return;
+      if (!receipt || receipt.status !== 1) throw new Error("Transaction failed on-chain.");
+      const updated = await contract.getCount();
+      if (!sessionValid(session)) return;
+      recordActivity(action === "increment" ? "Increment" : "Decrement", tx.hash);
+      setCount(updated.toString());
       playCounterClick(1046.5, 0.25);
     } catch (err) {
-      setError(err?.shortMessage || err?.message || "Increment transaction failed.");
+      if (sessionValid(session)) setError(err?.shortMessage || err?.message || "Transaction failed.");
     } finally {
-      setPendingAction(null);
+      if (sessionValid(session)) setPendingAction(null);
     }
   };
-
-  const decrement = async () => {
-    if (!contract || pendingAction) return;
-    setPendingAction("decrement");
-    setError("");
-    try {
-      const tx = await contract.decrement();
-      await tx.wait();
-      recordActivity("Decrement", tx.hash);
-      const updatedCount = await contract.getCount();
-      setCount(updatedCount.toString());
-      playCounterClick(1046.5, 0.25);
-    } catch (err) {
-      setError(err?.shortMessage || err?.message || "Decrement transaction failed.");
-    } finally {
-      setPendingAction(null);
-    }
-  };
+  const increment = () => performAction("increment");
+  const decrement = () => performAction("decrement");
 
   const isPending = pendingAction !== null;
 
@@ -298,7 +312,7 @@ function App() {
                   onClick={copyTxHash}
                   className="text-gray-500 hover:text-gray-800 text-[11px] px-2 py-0.5 rounded border border-gray-200 bg-white cursor-pointer"
                 >
-                  {copied ? "Copied!" : "Copy"}
+                  {copiedHash === lastTxHash ? "Copied!" : "Copy"}
                 </button>
               </div>
             )}
