@@ -45,6 +45,8 @@ function App() {
   if (!countGuard.current) countGuard.current = createRevisionGuard();
   const connectionAttempt = useRef(0);
   const switchingByApp = useRef(false);
+  const authorizingWallet = useRef(false);
+  const connectedWallet = useRef(false);
   const [copiedHash, setCopiedHash] = useState(null);
   const sessionValid = (revision) => sessionGuard.current.isCurrent(revision);
 
@@ -52,6 +54,8 @@ function App() {
     sessionGuard.current.invalidate();
     countGuard.current.invalidate();
     connectionAttempt.current += 1;
+    authorizingWallet.current = false;
+    connectedWallet.current = false;
     setWallet(null);
     setContract(null);
     setCount(null);
@@ -128,7 +132,12 @@ function App() {
   useEffect(() => {
     const ethereum = window.ethereum;
     if (!ethereum?.on) return;
-    const onAccountChange = () => resetSession();
+    const onAccountChange = () => {
+      // First-time permission may emit accountsChanged while getSigner awaits.
+      // The connection flow verifies the final account and chain before accepting it.
+      if (authorizingWallet.current && !connectedWallet.current) return;
+      resetSession();
+    };
     const onChainChange = () => {
       // Even an intentional network switch invalidates existing session data.
       // The in-progress connection is allowed to re-check the selected chain.
@@ -165,7 +174,9 @@ function App() {
       if (Number(verifiedNetwork.chainId) !== KITE_TESTNET_CHAIN_ID) {
         throw new Error("Kite AI Testnet was not selected.");
       }
+      authorizingWallet.current = true;
       const signer = await provider.getSigner();
+      authorizingWallet.current = false;
       if (!currentAttempt()) return;
       const address = await signer.getAddress();
       if (!currentAttempt()) return;
@@ -181,10 +192,13 @@ function App() {
       countGuard.current.invalidate();
       setContract(instance);
       setCount(initialCount.toString());
+      connectedWallet.current = true;
       setWallet(address);
       setError("");
     } catch (err) {
       if (currentAttempt()) setError(err?.message || "Failed to connect wallet.");
+    } finally {
+      if (currentAttempt()) authorizingWallet.current = false;
     }
   };
 
@@ -201,11 +215,18 @@ function App() {
       const receipt = await tx.wait();
       if (!sessionValid(session)) return;
       if (!receipt || receipt.status !== 1) throw new Error("Transaction failed on-chain.");
-      const updated = await contract.getCount();
-      if (!sessionValid(session)) return;
+      // Confirmation is authoritative; a subsequent read failure must not
+      // erase the successful transaction from the activity feed.
       recordActivity(action === "increment" ? "Increment" : "Decrement", tx.hash);
-      setCount(updated.toString());
       playCounterClick(1046.5, 0.25);
+      try {
+        const updated = await contract.getCount();
+        if (sessionValid(session)) setCount(updated.toString());
+      } catch (refreshError) {
+        if (sessionValid(session)) {
+          setError(`Transaction confirmed, but count refresh failed: ${refreshError?.shortMessage || refreshError?.message || "Please sync again."}`);
+        }
+      }
     } catch (err) {
       if (sessionValid(session)) setError(err?.shortMessage || err?.message || "Transaction failed.");
     } finally {
