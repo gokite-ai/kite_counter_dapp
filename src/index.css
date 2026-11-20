@@ -48,9 +48,18 @@ body{
     color: #4f4f4f;
 }
 
-@media only screen and (max-width: 767px) {
-.headerwrap{
-    justify-content: center;
-    gap: 10px;
-}
+@media (max-width: 480px) {
+    .headerwrap .logowrap {
+        font-size: 14px;
+        line-height: 1.2;
+    }
+
+    .headerwrap .logowrap img {
+        width: 24px;
+        flex-shrink: 0;
+    }
+
+    .headerwrap .wallet-trigger {
+        padding-inline: .55rem;
+    }
 }
