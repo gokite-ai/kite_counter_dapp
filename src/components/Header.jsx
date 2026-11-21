@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import PropTypes from "prop-types";
 import logo from "../assets/network_logo.svg";
 
 export default function Header({ wallet, disconnectWallet }) {
@@ -54,3 +55,8 @@ export default function Header({ wallet, disconnectWallet }) {
     </header>
   );
 }
+
+Header.propTypes = {
+  wallet: PropTypes.string,
+  disconnectWallet: PropTypes.func,
+};
