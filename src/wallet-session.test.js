@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRevisionGuard, selectKiteNetwork } from './wallet-session.js';
+import { createRevisionGuard, mayFinishAuthorization, selectKiteNetwork } from './wallet-session.js';
 
 const params = { chainId: '0x940' };
 
@@ -35,4 +35,9 @@ test('propagates user rejection without attempting chain addition', async () => 
   const wallet = { request: async ({ method }) => { calls.push(method); throw { code: 4001 }; } };
   await assert.rejects(selectKiteNetwork(wallet, params));
   assert.deepEqual(calls, ['wallet_switchEthereumChain']);
+});
+
+test("stale wallet authorization cannot clear newer attempt", () => {
+  assert.equal(mayFinishAuthorization(1, 2), false);
+  assert.equal(mayFinishAuthorization(2, 2), true);
 });

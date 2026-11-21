@@ -27,3 +27,6 @@ export async function selectKiteNetwork(ethereum, params) {
     throw new Error('Kite AI Testnet was not selected.');
   }
 }
+
+// A stale connection must never release the current authorization flag.
+export const mayFinishAuthorization = (attempt, activeAttempt) => attempt === activeAttempt;

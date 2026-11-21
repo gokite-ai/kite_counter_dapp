@@ -8,7 +8,7 @@ import StepSelector from "./components/StepSelector";
 import CONTRACT_ABI from "../abis/Counter.json";
 import "./index.css";
 import { playCounterClick } from "./utils/audioFeedback";
-import { createRevisionGuard, selectKiteNetwork } from "./wallet-session";
+import { createRevisionGuard, mayFinishAuthorization, selectKiteNetwork } from "./wallet-session";
 import { KITE_TESTNET_CHAIN_ID, KITESCAN_EXPLORER_URL, KITE_TESTNET_PARAMS } from "./kite-network";
 
 const CONTRACT_ADDRESS = "0x67924334CAC5f87ce009FF0568E01930a74A1aEA";
@@ -176,7 +176,7 @@ function App() {
       }
       authorizingWallet.current = true;
       const signer = await provider.getSigner();
-      authorizingWallet.current = false;
+      if (mayFinishAuthorization(attempt, connectionAttempt.current)) authorizingWallet.current = false;
       if (!currentAttempt()) return;
       const address = await signer.getAddress();
       if (!currentAttempt()) return;
@@ -198,7 +198,7 @@ function App() {
     } catch (err) {
       if (currentAttempt()) setError(err?.message || "Failed to connect wallet.");
     } finally {
-      if (currentAttempt()) authorizingWallet.current = false;
+      if (mayFinishAuthorization(attempt, connectionAttempt.current)) authorizingWallet.current = false;
     }
   };
 
