@@ -8,7 +8,7 @@ import StepSelector from "./components/StepSelector";
 import CONTRACT_ABI from "../abis/Counter.json";
 import "./index.css";
 import { playCounterClick } from "./utils/audioFeedback";
-import { createRevisionGuard, mayFinishAuthorization, selectKiteNetwork } from "./wallet-session";
+import { applySessionUpdate, createRevisionGuard, mayFinishAuthorization, selectKiteNetwork } from "./wallet-session";
 import { KITE_TESTNET_CHAIN_ID, KITESCAN_EXPLORER_URL, KITE_TESTNET_PARAMS } from "./kite-network";
 
 const CONTRACT_ADDRESS = "0x67924334CAC5f87ce009FF0568E01930a74A1aEA";
@@ -217,20 +217,22 @@ function App() {
       if (!receipt || receipt.status !== 1) throw new Error("Transaction failed on-chain.");
       // Confirmation is authoritative; a subsequent read failure must not
       // erase the successful transaction from the activity feed.
-      recordActivity(action === "increment" ? "Increment" : "Decrement", tx.hash);
-      playCounterClick(1046.5, 0.25);
+      applySessionUpdate(sessionGuard.current, session, () => {
+        recordActivity(action === "increment" ? "Increment" : "Decrement", tx.hash);
+        playCounterClick(1046.5, 0.25);
+      });
       try {
         const updated = await contract.getCount();
-        if (sessionValid(session)) setCount(updated.toString());
+        applySessionUpdate(sessionGuard.current, session, () => setCount(updated.toString()));
       } catch (refreshError) {
-        if (sessionValid(session)) {
+        applySessionUpdate(sessionGuard.current, session, () => {
           setError(`Transaction confirmed, but count refresh failed: ${refreshError?.shortMessage || refreshError?.message || "Please sync again."}`);
-        }
+        });
       }
     } catch (err) {
-      if (sessionValid(session)) setError(err?.shortMessage || err?.message || "Transaction failed.");
+      applySessionUpdate(sessionGuard.current, session, () => setError(err?.shortMessage || err?.message || "Transaction failed."));
     } finally {
-      if (sessionValid(session)) setPendingAction(null);
+      applySessionUpdate(sessionGuard.current, session, () => setPendingAction(null));
     }
   };
   const increment = () => performAction("increment");

@@ -30,3 +30,11 @@ export async function selectKiteNetwork(ethereum, params) {
 
 // A stale connection must never release the current authorization flag.
 export const mayFinishAuthorization = (attempt, activeAttempt) => attempt === activeAttempt;
+
+// Apply session-owned UI updates only while the originating wallet session
+// remains current. Async receipt and RPC completions can outlive disconnects.
+export function applySessionUpdate(guard, revision, update) {
+  if (!guard.isCurrent(revision)) return false;
+  update();
+  return true;
+}
