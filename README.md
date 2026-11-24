@@ -6,7 +6,7 @@ Kite AI - Counter Dapp is a decentralized application (dApp) built with **Kite A
 
 - **Counter Functionality**: A decentralized counter stored on the blockchain.
 - **Ethereum Integration**: Uses Ethers.js to interact with smart contracts.
-- **Reactive Wallet Lifecycle**: Automatically listens to MetaMask `accountsChanged` and `chainChanged` events to keep user state synchronized without manual page reloads.
+- **Wallet selection and restore**: Choose an EIP-6963 wallet or connect a legacy browser wallet. On reload, the app checks the saved wallet’s authorized account and network before restoring the connection.
 - **Fast & Responsive UI**: Styled with Tailwind CSS for a seamless experience.
 - **Optimized Performance**: Built with Vite for rapid development and loading speed.
 
@@ -36,10 +36,34 @@ Kite AI - Counter Dapp is a decentralized application (dApp) built with **Kite A
 
 ## Usage
 
-- Connect your Ethereum wallet (MetaMask or any compatible wallet)
-- Add Kite AI Testnet Chain (as custom RPC)
-- Acquire testnet tokens to interact with KITEAI chain 
-- Interact with the blockchain-based counter.
+- Open the app to read the shared Counter on Kite Testnet. Use **Sync** to fetch a fresh value.
+- To write, open **Connect wallet** in the top-right corner, select an installed wallet and approve the connection in its extension. The dialog then shows the wallet and account on Kite Testnet or the reason the connection could not be completed. Reopen the connected wallet button to copy the address or disconnect.
+- Use testnet KITE for gas. Select **+1** or **−1** and review the transaction in your wallet.
+- After broadcasting, use the transaction link to check the result on KiteScan.
+
+## Fixes and PR verification
+
+This change builds on [PR #38](https://github.com/gokite-ai/kite_counter_dapp/pull/38) and uses the existing Kite Testnet Counter contract and ABI.
+
+| Fix | How to verify |
+| --- | --- |
+| Wallet discovery and connection are in the header dialog | Open **Connect wallet** in the top-right corner. With two EIP-6963 wallets, select the second and confirm only that wallet requests access. Verify the approval step and success result. Decline a request and confirm the dialog shows the failure and a way back to the list. A legacy-only wallet appears as **Browser wallet**. The picker displays embedded extension icons and uses the generic wallet icon when artwork is unavailable or invalid. |
+| Refresh can restore a verified wallet session | Connect on Kite Testnet and refresh. The same wallet and account should return without another prompt. Disconnect and refresh again. The app should stay disconnected. Changing the selected network or account clears write access. |
+| Counter buttons match what the contract executes | Connect a wallet and select **+1** or **−1**. Each click should produce a single wallet request for the corresponding `increment()` or `decrement()` method. |
+| A submitted transaction can be tracked immediately | The app shows the wallet prompt stage, the broadcast hash and KiteScan link, then the receipt status. If a receipt is unavailable after the wait, check the existing hash before allowing another write. Check reverted and confirmed receipts separately. |
+| Counter reads work without a wallet | Open the app in a browser profile without wallet extensions. Verify that the counter and last successful read time appear and the write buttons are disabled. Disconnect the network or block the RPC, then try **Sync**. The previous value and read time should remain visible alongside the error. |
+
+Run the local checks before submitting:
+
+```sh
+npm run lint
+node --test src/wallet-session.test.js
+npm run build
+```
+
+Local verification passed for lint, the production build, and eight wallet-session tests. Chrome verification with simulated wallets and receipts covered the header dialog on mobile, wallet selection, approval, refusal and retry, keyboard dismissal, silent restore, both single-step calls, broadcast tracking, timeout recovery, and reverted transactions. The no-wallet count also loaded from the real Kite Testnet RPC in Chrome. Wallet-extension signing and real testnet write transactions are pending manual verification.
+
+Counter state is shared with other users. Use the wallet request and KiteScan receipt to verify the transaction method and result. Activity is kept for the current page, so save the KiteScan link if you intend to reload while a transaction is pending.
 
 ## KiteAI Testnet network settings
 

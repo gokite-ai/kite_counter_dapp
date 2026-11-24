@@ -1,4 +1,7 @@
 import PropTypes from "prop-types";
+import { KITESCAN_EXPLORER_URL } from "../kite-network";
+
+const statuses = { confirmed: "Confirmed", failed: "Reverted", unconfirmed: "Unconfirmed" };
 
 function ActivityFeed({ activities }) {
   if (!activities || activities.length === 0) {
@@ -30,11 +33,12 @@ function ActivityFeed({ activities }) {
                 }`}
               />
               <span className="font-medium text-gray-700">{item.type}</span>
+              <span className="text-gray-600">{statuses[item.status]}</span>
               <span className="text-[10px] text-gray-400">{item.timestamp}</span>
             </div>
             {item.hash && (
               <a
-                href={`https://testnet.kitescan.ai/tx/${item.hash}`}
+                href={`${KITESCAN_EXPLORER_URL}/tx/${item.hash}`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-indigo-600 hover:text-indigo-800 font-mono text-[11px] underline"
@@ -56,6 +60,7 @@ ActivityFeed.propTypes = {
       type: PropTypes.string.isRequired,
       hash: PropTypes.string,
       timestamp: PropTypes.string.isRequired,
+      status: PropTypes.oneOf(["confirmed", "failed", "unconfirmed"]).isRequired,
     })
   ),
 };
